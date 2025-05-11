@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'welcome_screen.dart';
 import 'theme_provider.dart';
 
-void main() {
+void main() async {
+  await dotenv.load(fileName: ".env");
   runApp(
     ChangeNotifierProvider(create: (context) => ThemeProvider(), child: Root()),
   );
