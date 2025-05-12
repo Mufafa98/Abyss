@@ -6,12 +6,103 @@ enum SortBy { title, popularity, releaseDate }
 
 enum SortByDirection { ascending, descending }
 
-class Movie {
-  final int id;
-  final String imageUrl;
-  final String title;
+enum ProductionType { movie, tv }
 
-  Movie(this.id, this.imageUrl, this.title);
+class Production {
+  final ProductionType type;
+  final int id;
+  final String _posterUrl;
+  final String _backdropUrl;
+  final String title;
+  final String description;
+  final List<int> genres;
+  final DateTime releaseDate;
+  final double rating;
+  final String language;
+
+  Production(
+    this.type,
+    this.id,
+    String posterUrl,
+    String backdropUrl,
+    this.title,
+    this.description,
+    this.genres,
+    this.releaseDate,
+    this.rating,
+    this.language,
+  ) : _posterUrl = posterUrl,
+      _backdropUrl = backdropUrl;
+  static empty() {
+    return Production(
+      ProductionType.movie,
+      0,
+      '',
+      '',
+      '',
+      '',
+      [],
+      DateTime.now(),
+      0,
+      '',
+    );
+  }
+
+  String get posterW200 {
+    if (_posterUrl != 'null') {
+      return 'https://image.tmdb.org/t/p/w200$_posterUrl';
+    }
+    return _posterUrl;
+  }
+
+  String get backdropW500 {
+    if (_backdropUrl != 'null') {
+      return 'https://image.tmdb.org/t/p/w500$_backdropUrl';
+    }
+    return _backdropUrl;
+  }
+}
+
+class CastMember {
+  final int id;
+  final String name;
+  final String character;
+  final String _pictureUrl;
+
+  CastMember(this.id, this.name, this.character, String pictureUrl)
+    : _pictureUrl = pictureUrl;
+
+  String get profileW200 {
+    if (_pictureUrl != 'null') {
+      return 'https://image.tmdb.org/t/p/w200$_pictureUrl';
+    }
+    return _pictureUrl;
+  }
+}
+
+class Movie extends Production {
+  Movie(
+    int id,
+    String posterUrl,
+    String backdropUrl,
+    String title,
+    String description,
+    List<int> genres,
+    DateTime releaseDate,
+    double rating,
+    String language,
+  ) : super(
+        ProductionType.movie,
+        id,
+        posterUrl,
+        backdropUrl,
+        title,
+        description,
+        genres,
+        releaseDate,
+        rating,
+        language,
+      );
 }
 
 class MovieFilters {
@@ -114,12 +205,41 @@ class MovieFilters {
   }
 }
 
-class TV {
-  final int id;
-  final String imageUrl;
-  final String title;
+class AditionalInfo {
+  final int runtime;
+  final List<CastMember> cast;
 
-  TV(this.id, this.imageUrl, this.title);
+  AditionalInfo(this.runtime, this.cast);
+  AditionalInfo.empty() : runtime = 0, cast = [];
+
+  bool isEmpty() {
+    return runtime == 0 && cast.isEmpty;
+  }
+}
+
+class TV extends Production {
+  TV(
+    int id,
+    String posterUrl,
+    String backdropUrl,
+    String title,
+    String description,
+    List<int> genres,
+    DateTime releaseDate,
+    double rating,
+    String language,
+  ) : super(
+        ProductionType.tv,
+        id,
+        posterUrl,
+        backdropUrl,
+        title,
+        description,
+        genres,
+        releaseDate,
+        rating,
+        language,
+      );
 }
 
 class TvFilters {
@@ -226,6 +346,82 @@ class Certification {
 }
 
 class TMDBApi {
+  static List<Movie> _parseMovies(String responseBody) {
+    List<Movie> result = [];
+    final data = jsonDecode(responseBody);
+    int resultsCount = data['results'].length;
+
+    for (int i = 0; i < resultsCount; i++) {
+      dynamic current = data['results'][i];
+      List<int> genres = [];
+      for (int j = 0; j < current['genre_ids'].length; j++) {
+        genres.add(current['genre_ids'][j]);
+      }
+      DateTime releaseDate;
+      if (current['release_date'] != null) {
+        releaseDate = DateTime.parse(current['release_date']);
+      } else {
+        releaseDate = DateTime.now();
+      }
+      double rating = 0;
+      if (current['vote_average'] != null) {
+        rating = current['vote_average'].toDouble();
+      }
+      result.add(
+        Movie(
+          current['id'],
+          current['poster_path'] ?? 'null',
+          current['backdrop_path'] ?? 'null',
+          current['title'] ?? 'No Title',
+          current['overview'] ?? 'No Description',
+          genres,
+          releaseDate,
+          rating,
+          current['original_language'] ?? 'en',
+        ),
+      );
+    }
+    return result;
+  }
+
+  static List<TV> _parseTVs(String responseBody) {
+    List<TV> result = [];
+    final data = jsonDecode(responseBody);
+    int resultsCount = data['results'].length;
+    for (int i = 0; i < resultsCount; i++) {
+      dynamic current = data['results'][i];
+      List<int> genres = [];
+      for (int j = 0; j < current['genre_ids'].length; j++) {
+        genres.add(current['genre_ids'][j]);
+      }
+      DateTime releaseDate;
+      if (current['first_air_date'] != null &&
+          current['first_air_date'] != '') {
+        releaseDate = DateTime.parse(current['first_air_date']);
+      } else {
+        releaseDate = DateTime.now();
+      }
+      double rating = 0;
+      if (current['vote_average'] != null) {
+        rating = current['vote_average'].toDouble();
+      }
+      result.add(
+        TV(
+          current['id'],
+          current['poster_path'] ?? 'null',
+          current['backdrop_path'] ?? 'null',
+          current['name'] ?? 'No Title',
+          current['overview'] ?? 'No Description',
+          genres,
+          releaseDate,
+          rating,
+          current['original_language'] ?? 'en',
+        ),
+      );
+    }
+    return result;
+  }
+
   static Future<List<Movie>> getMovies(int page, MovieFilters filters) async {
     String uri =
         'https://api.themoviedb.org/3/discover/'
@@ -238,35 +434,13 @@ class TMDBApi {
         '${filters.lteReleaseDate}'
         '${filters.sortByQuery}'
         'page=$page&';
-    // 'sort_by=popularity.desc';
-    print(uri);
-    print(filters.includeAdult);
-    print(filters.certification);
-    print(filters.genres);
     String apiKey = dotenv.env['TMDB_KEY'] ?? '';
     final response = await http.get(
       Uri.parse(uri),
       headers: {'Authorization': 'Bearer $apiKey'},
     );
-    List<Movie> result = [];
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      int results = data['results'].length;
-      for (int i = 0; i < results; i++) {
-        String imageUrl =
-            'https://image.tmdb.org/t/p/w200${data['results'][i]['poster_path']}';
-        if (data['results'][i]['poster_path'] == null) {
-          imageUrl = 'null';
-        }
-        result.add(
-          Movie(
-            data['results'][i]['id'],
-            imageUrl,
-            data['results'][i]['title'] ?? 'No Title',
-          ),
-        );
-      }
-      return result;
+      return _parseMovies(response.body);
     } else {
       throw Exception('Failed to load data on Movies Ids');
     }
@@ -289,34 +463,55 @@ class TMDBApi {
         '${filters.sortByQuery}'
         'page=$page&'
         'query=$query';
-    print(uri);
+    // print(uri);
     String apiKey = dotenv.env['TMDB_KEY'] ?? '';
     final response = await http.get(
       Uri.parse(uri),
       headers: {'Authorization': 'Bearer $apiKey'},
     );
-    List<Movie> result = [];
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      int results = data['results'].length;
-      for (int i = 0; i < results; i++) {
-        String imageUrl =
-            'https://image.tmdb.org/t/p/w200${data['results'][i]['poster_path']}';
-        if (data['results'][i]['poster_path'] == null) {
-          imageUrl = 'null';
-        }
-        result.add(
-          Movie(
-            data['results'][i]['id'],
-            imageUrl,
-            data['results'][i]['title'] ?? 'No Title',
-          ),
-        );
-      }
-      return result;
+      return _parseMovies(response.body);
     } else {
       throw Exception('Failed to load data on Movies Ids');
     }
+  }
+
+  static Future<AditionalInfo> getMovieInfo(int id) async {
+    String apiKey = dotenv.env['TMDB_KEY'] ?? '';
+    final response = await http.get(
+      Uri.parse('https://api.themoviedb.org/3/movie/$id?'),
+      headers: {'Authorization': 'Bearer $apiKey'},
+    );
+    int runtime = 0;
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      runtime = data['runtime'];
+    } else {
+      throw Exception('Failed to load data on Movies info for id: $id');
+    }
+    List<CastMember> cast = [];
+    final response2 = await http.get(
+      Uri.parse('https://api.themoviedb.org/3/movie/$id/credits?'),
+      headers: {'Authorization': 'Bearer $apiKey'},
+    );
+    if (response2.statusCode == 200) {
+      final data = jsonDecode(response2.body);
+      int resultsCount = data['cast'].length;
+      for (int i = 0; i < resultsCount; i++) {
+        dynamic current = data['cast'][i];
+        cast.add(
+          CastMember(
+            current['id'],
+            current['name'] ?? 'No Name',
+            current['character'] ?? 'No Character',
+            current['profile_path'] ?? 'null',
+          ),
+        );
+      }
+    } else {
+      throw Exception('Failed to load data on Movies credits for id: $id');
+    }
+    return AditionalInfo(runtime, cast);
   }
 
   static Future<List<TV>> getTVs(int page, TvFilters filters) async {
@@ -331,30 +526,13 @@ class TMDBApi {
         '${filters.lteReleaseDate}'
         '${filters.sortByQuery}'
         'page=$page&';
-    print(uri);
+    // print(uri);
     final response = await http.get(
       Uri.parse(uri),
       headers: {'Authorization': 'Bearer $apiKey'},
     );
-    List<TV> result = [];
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      int results = data['results'].length;
-      for (int i = 0; i < results; i++) {
-        String imageUrl =
-            'https://image.tmdb.org/t/p/w200${data['results'][i]['poster_path']}';
-        if (data['results'][i]['poster_path'] == null) {
-          imageUrl = 'null';
-        }
-        result.add(
-          TV(
-            data['results'][i]['id'],
-            imageUrl,
-            data['results'][i]['name'] ?? 'No Title',
-          ),
-        );
-      }
-      return result;
+      return _parseTVs(response.body);
     } else {
       throw Exception('Failed to load data on Movies Ids');
     }
@@ -382,28 +560,58 @@ class TMDBApi {
       Uri.parse(uri),
       headers: {'Authorization': 'Bearer $apiKey'},
     );
-    List<TV> result = [];
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      int results = data['results'].length;
-      for (int i = 0; i < results; i++) {
-        String imageUrl =
-            'https://image.tmdb.org/t/p/w200${data['results'][i]['poster_path']}';
-        if (data['results'][i]['poster_path'] == null) {
-          imageUrl = 'null';
-        }
-        result.add(
-          TV(
-            data['results'][i]['id'],
-            imageUrl,
-            data['results'][i]['name'] ?? 'No Title',
-          ),
-        );
-      }
-      return result;
+      return _parseTVs(response.body);
     } else {
       throw Exception('Failed to load data on Movies Ids');
     }
+  }
+
+  static Future<AditionalInfo> getTVInfo(int id) async {
+    String apiKey = dotenv.env['TMDB_KEY'] ?? '';
+    final response = await http.get(
+      Uri.parse('https://api.themoviedb.org/3/tv/$id?'),
+      headers: {'Authorization': 'Bearer $apiKey'},
+    );
+    int runtime = 0;
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      num sum = 0;
+      if (data['episode_run_time'] == null ||
+          data['episode_run_time'].length == 0) {
+        runtime = 0;
+      } else {
+        for (int i = 0; i < data['episode_run_time'].length; i++) {
+          sum += data['episode_run_time'][i];
+        }
+        runtime = sum ~/ data['episode_run_time'].length;
+      }
+    } else {
+      throw Exception('Failed to load data on tv info for id: $id');
+    }
+    List<CastMember> cast = [];
+    final response2 = await http.get(
+      Uri.parse('https://api.themoviedb.org/3/tv/$id/credits?'),
+      headers: {'Authorization': 'Bearer $apiKey'},
+    );
+    if (response2.statusCode == 200) {
+      final data = jsonDecode(response2.body);
+      int resultsCount = data['cast'].length;
+      for (int i = 0; i < resultsCount; i++) {
+        dynamic current = data['cast'][i];
+        cast.add(
+          CastMember(
+            current['id'],
+            current['name'] ?? 'No Name',
+            current['character'] ?? 'No Character',
+            current['profile_path'] ?? 'null',
+          ),
+        );
+      }
+    } else {
+      throw Exception('Failed to load data on tv credits for id: $id');
+    }
+    return AditionalInfo(runtime, cast);
   }
 
   static Future<List<Genres>> getMovieGenres() async {

@@ -33,7 +33,7 @@ class _AbyssNavigationBarState extends State<AbyssNavigationBar> {
       builder: (context, theme, child) {
         return BottomNavigationBar(
           currentIndex: _currentIndex,
-          selectedItemColor: theme.theme.colorScheme.primary,
+          selectedItemColor: theme.colorScheme.primary,
           onTap: _onItemTapped,
           items: [
             BottomNavigationBarItem(icon: Icon(Icons.tv), label: 'Track'),

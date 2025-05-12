@@ -26,6 +26,7 @@ class ThemeProvider extends ChangeNotifier {
     ),
   );
 
+  ColorScheme get colorScheme => _theme.colorScheme;
   ThemeData get theme => _theme;
 
   void setTheme(ThemeData theme) {

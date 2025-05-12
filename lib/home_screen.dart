@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:mutex/mutex.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+
+import 'theme_provider.dart';
 import 'navigation_bar.dart';
 import 'tmdb_api.dart';
-
-enum ProductionType { movie, tv }
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -45,6 +47,8 @@ class HomeScreenState extends State<HomeScreen> {
 
   bool _inSearch = false;
   String _searchQuery = '';
+
+  Production _selectedProduction = Production.empty();
 
   @override
   void initState() {
@@ -277,6 +281,303 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // -----------------> Prod PopUp <-----------------
+  void _showProductionPopUp() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext modalContext) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.85,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(children: [_buildProductionPopUp(context)]),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildProductionPopUp(BuildContext context) {
+    return Consumer<ThemeProvider>(
+      builder: (context, theme, child) {
+        return Expanded(
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                _buildProductionPopUpHeader(context),
+                _buildProductionPopUpBody(context, theme),
+                _buildProductionPopUpCast(context, theme),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildProductionPopUpHeader(BuildContext context) {
+    return Stack(
+      children: [
+        Image.network(
+          _selectedProduction.backdropW500,
+          fit: BoxFit.fitWidth,
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              color: Colors.black,
+              child: Center(child: Icon(Icons.error, color: Colors.red)),
+            );
+          },
+        ),
+        Positioned(
+          top: 4,
+          right: 4,
+          child: IconButton(
+            icon: Icon(Icons.close, color: Colors.white),
+            onPressed: () {
+              Navigator.pop(context);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProductionPopUpBody(BuildContext context, ThemeProvider theme) {
+    return Padding(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Text(
+            _selectedProduction.title,
+            style: Theme.of(context).textTheme.headlineSmall,
+            softWrap: true,
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: 16),
+          Row(
+            children: [
+              ElevatedButton.icon(
+                icon: Icon(
+                  Icons.check_circle,
+                  size: 25,
+                  color: theme.colorScheme.onPrimary,
+                ),
+                label: Text(
+                  'Mark as watched',
+                  style: TextStyle(color: theme.colorScheme.onPrimary),
+                ),
+                onPressed: () {},
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.colorScheme.secondary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(30),
+                      bottomLeft: Radius.circular(30),
+                    ),
+                  ),
+                ),
+              ),
+              ElevatedButton.icon(
+                icon: Text(
+                  'Add to watchlist',
+                  style: TextStyle(color: theme.colorScheme.onPrimary),
+                ),
+                label: Icon(
+                  Icons.add_circle,
+                  size: 25,
+                  color: theme.colorScheme.onPrimary,
+                ),
+                onPressed: () {},
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.colorScheme.secondary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.only(
+                      topRight: Radius.circular(30),
+                      bottomRight: Radius.circular(30),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Text("Overview", style: Theme.of(context).textTheme.headlineSmall),
+          SizedBox(height: 8),
+          Text(
+            _selectedProduction.description,
+            style: Theme.of(context).textTheme.bodyMedium,
+            softWrap: true,
+            textAlign: TextAlign.justify,
+          ),
+          SizedBox(height: 16),
+          Text("Details", style: Theme.of(context).textTheme.headlineSmall),
+          _buildProductionPopUpDetails(context, theme),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProductionPopUpDetails(
+    BuildContext context,
+    ThemeProvider theme,
+  ) {
+    List<Widget> chips = [];
+    final DateFormat dateFormat = DateFormat('dd MMM yyyy');
+    final String formattedDate = dateFormat.format(
+      _selectedProduction.releaseDate,
+    );
+
+    Chip buildChip(Widget label) {
+      return Chip(
+        label: label,
+        backgroundColor: theme.colorScheme.secondary,
+        side: BorderSide(color: theme.colorScheme.secondary, width: 0),
+      );
+    }
+
+    List<Widget> buildGenres(List<int> genres) {
+      return genres.map((genreId) {
+        final genre =
+            productionType == ProductionType.movie
+                ? _movieGenres.firstWhere((g) => g.id == genreId)
+                : _tvGenres.firstWhere((g) => g.id == genreId);
+        return buildChip(Text(genre.name));
+      }).toList();
+    }
+
+    chips.add(buildChip(Text(formattedDate)));
+    chips.add(
+      buildChip(
+        Text('${_selectedProduction.rating.toStringAsPrecision(2)} TMDB'),
+      ),
+    );
+    chips.add(buildChip(Text(_selectedProduction.language.toUpperCase())));
+    List<Widget> genreChips = buildGenres(_selectedProduction.genres);
+    Future<AditionalInfo> loader;
+    if (productionType == ProductionType.movie) {
+      loader = TMDBApi.getMovieInfo(_selectedProduction.id);
+    } else {
+      loader = TMDBApi.getTVInfo(_selectedProduction.id);
+    }
+    Widget runtime = FutureBuilder(
+      future: loader,
+      builder: (context, snapshot) {
+        AditionalInfo movieInfo = snapshot.data ?? AditionalInfo.empty();
+        return buildChip(
+          Text("${movieInfo.runtime != 0 ? movieInfo.runtime : '--'} min"),
+        );
+      },
+    );
+    chips.add(runtime);
+    chips.addAll(genreChips);
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      alignment: WrapAlignment.center,
+      children: chips,
+    );
+  }
+
+  Widget _buildProductionPopUpCast(BuildContext context, ThemeProvider theme) {
+    Future<AditionalInfo> loader;
+    if (productionType == ProductionType.movie) {
+      loader = TMDBApi.getMovieInfo(_selectedProduction.id);
+    } else {
+      loader = TMDBApi.getTVInfo(_selectedProduction.id);
+    }
+    return FutureBuilder(
+      future: loader,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(child: CircularProgressIndicator());
+        } else if (snapshot.hasError) {
+          return Center(child: Text('Error loading cast ${snapshot.error}'));
+        } else {
+          AditionalInfo movieInfo = snapshot.data ?? AditionalInfo.empty();
+          return _buildCastList(movieInfo.cast, context, theme);
+        }
+      },
+    );
+  }
+
+  Widget _buildCastList(
+    List<CastMember> cast,
+    BuildContext context,
+    ThemeProvider theme,
+  ) {
+    Widget actorChip(CastMember actor) {
+      return SizedBox(
+        width: 150,
+        child: Column(
+          children: [
+            Image.network(
+              actor.profileW200,
+              // width: 100,
+              // height: 100,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  color: Colors.black,
+                  child: Center(child: Icon(Icons.error, color: Colors.red)),
+                );
+              },
+            ),
+            SizedBox(height: 4),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  actor.name,
+                  softWrap: true,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  actor.character,
+                  softWrap: true,
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 4),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text("Cast", style: Theme.of(context).textTheme.headlineSmall),
+          SizedBox(height: 8),
+          SizedBox(
+            height: 350,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: cast.length,
+              itemBuilder: (context, index) {
+                CastMember actor = cast[index];
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: Column(children: [actorChip(actor)]),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  // -----------------> Prod PopUp <-----------------
+  // ------------------------------------------------
   // -----------------> Filter Bar <-----------------
 
   Widget _getChipIcon(
@@ -700,7 +1001,7 @@ class HomeScreenState extends State<HomeScreen> {
             }
 
             Movie movie = moviePage[index % moviePage.length];
-            return _buildMovieWidget(movie.imageUrl, movie.title);
+            return _buildMovieWidget(movie);
           } else {
             List<TV>? tvPage = _tvMap[page];
 
@@ -715,7 +1016,7 @@ class HomeScreenState extends State<HomeScreen> {
             }
 
             TV tv = tvPage[index % tvPage.length];
-            return _buildMovieWidget(tv.imageUrl, tv.title);
+            return _buildMovieWidget(tv);
           }
         },
       ),
@@ -753,7 +1054,17 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildMovieWidget(String moviePoster, String title) {
+  Future<AditionalInfo> _loadMovieInfo(Production production) async {
+    try {
+      AditionalInfo movieInfo = await TMDBApi.getMovieInfo(production.id);
+      return movieInfo;
+    } catch (e) {
+      print('Error loading movie info: $e');
+      return AditionalInfo.empty();
+    }
+  }
+
+  Widget _buildMovieWidget(Production production) {
     Widget noImage(String title) {
       return Container(
         color: Colors.black,
@@ -772,30 +1083,28 @@ class HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    if (moviePoster == 'null') {
-      return noImage(title);
+    if (production.title == 'null') {
+      return noImage(production.title);
     }
-    try {
-      return ActionChip(
-        label: Image.network(
-          moviePoster,
-          fit: BoxFit.cover,
-          filterQuality: FilterQuality.low,
-          errorBuilder: (context, error, stackTrace) {
-            return noImage(title);
-          },
-        ),
-        padding: EdgeInsets.all(0),
-        labelPadding: EdgeInsets.all(0),
-        onPressed: () {
-          print('Clicked on $title');
+
+    return ActionChip(
+      label: Image.network(
+        production.posterW200,
+        fit: BoxFit.cover,
+        filterQuality: FilterQuality.low,
+        errorBuilder: (context, error, stackTrace) {
+          return noImage(production.title);
         },
-        backgroundColor: Colors.transparent,
-        shape: BeveledRectangleBorder(side: BorderSide(width: 0)),
-      );
-    } catch (e) {
-      return noImage(title);
-    }
+      ),
+      padding: EdgeInsets.all(0),
+      labelPadding: EdgeInsets.all(0),
+      onPressed: () {
+        setState(() => _selectedProduction = production);
+        _showProductionPopUp();
+      },
+      backgroundColor: Colors.transparent,
+      shape: BeveledRectangleBorder(side: BorderSide(width: 0)),
+    );
   }
 
   Widget _buildNavBar() {
