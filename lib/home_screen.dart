@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'theme_provider.dart';
 import 'navigation_bar.dart';
 import 'tmdb_api.dart';
+import 'prod_list_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -349,6 +350,92 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildProductionPopUpButton(BuildContext context) {
+    final ThemeProvider themeProvider = Provider.of<ThemeProvider>(context);
+    final WatchListProvider watchListProvider = Provider.of<WatchListProvider>(
+      context,
+    );
+    final WatchedListProvider watchedListProvider =
+        Provider.of<WatchedListProvider>(context);
+
+    bool inWatchedList = watchedListProvider.isInWatchedList(
+      _selectedProduction.id,
+    );
+    bool isInWatchlist = watchListProvider.isInWatchList(
+      _selectedProduction.id,
+    );
+
+    return Row(
+      children: [
+        Expanded(
+          child: ElevatedButton.icon(
+            icon: Icon(
+              inWatchedList ? Icons.remove_circle : Icons.check_circle,
+              size: 25,
+              color: themeProvider.colorScheme.onPrimary,
+            ),
+            label: Text(
+              inWatchedList ? 'Unwatched' : 'Mark as watched',
+              style: TextStyle(color: themeProvider.colorScheme.onPrimary),
+              textAlign: TextAlign.left,
+            ),
+            onPressed: () {
+              if (inWatchedList) {
+                watchedListProvider.removeFromWatchedList(_selectedProduction);
+              } else {
+                watchListProvider.removeFromWatchList(_selectedProduction);
+                watchedListProvider.addToWatchedList(_selectedProduction);
+              }
+              setState(() {});
+            },
+            style: ElevatedButton.styleFrom(
+              alignment: Alignment.centerLeft,
+              backgroundColor: themeProvider.colorScheme.secondary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(30),
+                  bottomLeft: Radius.circular(30),
+                ),
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: ElevatedButton.icon(
+            icon: Text(
+              isInWatchlist ? 'Remove from list' : 'Add to watchlist',
+              style: TextStyle(color: themeProvider.colorScheme.onPrimary),
+              textAlign: TextAlign.right,
+            ),
+            label: Icon(
+              isInWatchlist ? Icons.remove_circle : Icons.add_circle,
+              size: 25,
+              color: themeProvider.colorScheme.onPrimary,
+            ),
+            onPressed: () {
+              if (isInWatchlist) {
+                watchListProvider.removeFromWatchList(_selectedProduction);
+              } else {
+                watchListProvider.addToWatchList(_selectedProduction);
+              }
+              setState(() {});
+            },
+            style: ElevatedButton.styleFrom(
+              alignment: Alignment.centerRight,
+              backgroundColor: themeProvider.colorScheme.secondary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.only(
+                  topRight: Radius.circular(30),
+                  bottomRight: Radius.circular(30),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildProductionPopUpBody(BuildContext context, ThemeProvider theme) {
     return Padding(
       padding: EdgeInsets.all(16),
@@ -361,52 +448,7 @@ class HomeScreenState extends State<HomeScreen> {
             textAlign: TextAlign.center,
           ),
           SizedBox(height: 16),
-          Row(
-            children: [
-              ElevatedButton.icon(
-                icon: Icon(
-                  Icons.check_circle,
-                  size: 25,
-                  color: theme.colorScheme.onPrimary,
-                ),
-                label: Text(
-                  'Mark as watched',
-                  style: TextStyle(color: theme.colorScheme.onPrimary),
-                ),
-                onPressed: () {},
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.colorScheme.secondary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(30),
-                      bottomLeft: Radius.circular(30),
-                    ),
-                  ),
-                ),
-              ),
-              ElevatedButton.icon(
-                icon: Text(
-                  'Add to watchlist',
-                  style: TextStyle(color: theme.colorScheme.onPrimary),
-                ),
-                label: Icon(
-                  Icons.add_circle,
-                  size: 25,
-                  color: theme.colorScheme.onPrimary,
-                ),
-                onPressed: () {},
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.colorScheme.secondary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.only(
-                      topRight: Radius.circular(30),
-                      bottomRight: Radius.circular(30),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+          _buildProductionPopUpButton(context),
           Text("Overview", style: Theme.of(context).textTheme.headlineSmall),
           SizedBox(height: 8),
           Text(
@@ -469,6 +511,14 @@ class HomeScreenState extends State<HomeScreen> {
       future: loader,
       builder: (context, snapshot) {
         AditionalInfo movieInfo = snapshot.data ?? AditionalInfo.empty();
+        if (productionType == ProductionType.tv) {
+          TV prod = _selectedProduction as TV;
+          // prod.seasons = movieInfo.seasons;
+          for (var season in movieInfo.seasons) {
+            prod.episodes.addAll(season.episodes);
+          }
+          _selectedProduction = prod;
+        }
         return buildChip(
           Text("${movieInfo.runtime != 0 ? movieInfo.runtime : '--'} min"),
         );
@@ -1054,16 +1104,6 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<AditionalInfo> _loadMovieInfo(Production production) async {
-    try {
-      AditionalInfo movieInfo = await TMDBApi.getMovieInfo(production.id);
-      return movieInfo;
-    } catch (e) {
-      print('Error loading movie info: $e');
-      return AditionalInfo.empty();
-    }
-  }
-
   Widget _buildMovieWidget(Production production) {
     Widget noImage(String title) {
       return Container(
@@ -1099,7 +1139,9 @@ class HomeScreenState extends State<HomeScreen> {
       padding: EdgeInsets.all(0),
       labelPadding: EdgeInsets.all(0),
       onPressed: () {
-        setState(() => _selectedProduction = production);
+        setState(() {
+          _selectedProduction = production;
+        });
         _showProductionPopUp();
       },
       backgroundColor: Colors.transparent,

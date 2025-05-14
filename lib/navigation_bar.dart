@@ -1,6 +1,9 @@
+import 'package:abyss/home_screen.dart';
 import 'package:abyss/theme_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
+import 'track.dart';
 
 class AbyssNavigationBar extends StatefulWidget {
   final int initialIndex;
@@ -22,6 +25,24 @@ class _AbyssNavigationBarState extends State<AbyssNavigationBar> {
   }
 
   void _onItemTapped(int index) {
+    if (index != _currentIndex) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) {
+            switch (index) {
+              case 0:
+                return TrackScreen();
+              case 1:
+                return HomeScreen();
+              // case 2:
+              //   return AccountScreen();
+              default:
+                return HomeScreen();
+            }
+          },
+        ),
+      );
+    }
     setState(() {
       _currentIndex = index;
     });

@@ -4,11 +4,20 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'welcome_screen.dart';
 import 'theme_provider.dart';
+import 'prod_list_provider.dart';
 
 void main() async {
   await dotenv.load(fileName: ".env");
   runApp(
-    ChangeNotifierProvider(create: (context) => ThemeProvider(), child: Root()),
+    MultiProvider(
+      // Use MultiProvider
+      providers: [
+        ChangeNotifierProvider(create: (context) => ThemeProvider()),
+        ChangeNotifierProvider(create: (context) => WatchListProvider()),
+        ChangeNotifierProvider(create: (context) => WatchedListProvider()),
+      ],
+      child: Root(),
+    ),
   );
 }
 

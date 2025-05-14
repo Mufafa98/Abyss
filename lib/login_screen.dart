@@ -16,7 +16,6 @@ class LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
   @override
   Widget build(BuildContext context) {
-    
     Size size = MediaQuery.of(context).size;
 
     return MaterialApp(

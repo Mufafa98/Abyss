@@ -8,12 +8,44 @@ enum SortByDirection { ascending, descending }
 
 enum ProductionType { movie, tv }
 
-class Production {
-  final ProductionType type;
-  final int id;
-  final String _posterUrl;
-  final String _backdropUrl;
+class ProdBase {
   final String title;
+  final String posterUrl;
+  final String backdropUrl;
+  final int id;
+  final ProductionType type;
+
+  ProdBase(this.title, this.posterUrl, this.backdropUrl, this.id, this.type);
+  ProdBase.empty()
+    : title = '',
+      posterUrl = '',
+      backdropUrl = '',
+      id = 0,
+      type = ProductionType.movie;
+
+  String get posterW200 {
+    if (posterUrl != 'null') {
+      return 'https://image.tmdb.org/t/p/w200$posterUrl';
+    }
+    return posterUrl;
+  }
+
+  String get backdropW500 {
+    if (backdropUrl != 'null') {
+      return 'https://image.tmdb.org/t/p/w500$backdropUrl';
+    }
+    return backdropUrl;
+  }
+
+  String get backdropW200 {
+    if (backdropUrl != 'null') {
+      return 'https://image.tmdb.org/t/p/w200$backdropUrl';
+    }
+    return backdropUrl;
+  }
+}
+
+class Production extends ProdBase {
   final String description;
   final List<int> genres;
   final DateTime releaseDate;
@@ -21,18 +53,17 @@ class Production {
   final String language;
 
   Production(
-    this.type,
-    this.id,
+    ProductionType type,
+    int id,
     String posterUrl,
     String backdropUrl,
-    this.title,
+    String title,
     this.description,
     this.genres,
     this.releaseDate,
     this.rating,
     this.language,
-  ) : _posterUrl = posterUrl,
-      _backdropUrl = backdropUrl;
+  ) : super(title, posterUrl, backdropUrl, id, type);
   static empty() {
     return Production(
       ProductionType.movie,
@@ -48,18 +79,9 @@ class Production {
     );
   }
 
-  String get posterW200 {
-    if (_posterUrl != 'null') {
-      return 'https://image.tmdb.org/t/p/w200$_posterUrl';
-    }
-    return _posterUrl;
-  }
-
-  String get backdropW500 {
-    if (_backdropUrl != 'null') {
-      return 'https://image.tmdb.org/t/p/w500$_backdropUrl';
-    }
-    return _backdropUrl;
+  @override
+  String toString() {
+    return 'Production{type: $type, id: $id, posterUrl: $backdropUrl, backdropUrl: $backdropUrl, title: $title, description: $description, genres: $genres, releaseDate: $releaseDate, rating: $rating, language: $language}';
   }
 }
 
@@ -208,16 +230,62 @@ class MovieFilters {
 class AditionalInfo {
   final int runtime;
   final List<CastMember> cast;
+  final List<Season> seasons;
 
-  AditionalInfo(this.runtime, this.cast);
-  AditionalInfo.empty() : runtime = 0, cast = [];
+  AditionalInfo(this.runtime, this.cast, [this.seasons = const []]);
+  AditionalInfo.empty() : runtime = 0, cast = [], seasons = [];
 
   bool isEmpty() {
     return runtime == 0 && cast.isEmpty;
   }
 }
 
+class Episode {
+  int id;
+  int episodeNumber;
+  String name;
+  String stillPath;
+
+  Episode(this.id, this.episodeNumber, this.name, this.stillPath);
+  Episode.empty() : id = 0, episodeNumber = 0, name = '', stillPath = 'null';
+  String get stillW200 {
+    if (stillPath != 'null') {
+      return 'https://image.tmdb.org/t/p/w200$stillPath';
+    }
+    return stillPath;
+  }
+
+  @override
+  String toString() {
+    return 'Episode{id: $id, episodeNumber: $episodeNumber, name: $name, stillPath: $stillPath}';
+  }
+}
+
+class Season {
+  int id;
+  int seasonNumber;
+  String posterPath;
+  List<Episode> episodes;
+
+  Season(this.id, this.seasonNumber, this.posterPath, this.episodes);
+  Season.empty() : id = 0, seasonNumber = 0, posterPath = 'null', episodes = [];
+  String get posterW200 {
+    if (posterPath != 'null') {
+      return 'https://image.tmdb.org/t/p/w200$posterPath';
+    }
+    return posterPath;
+  }
+
+  @override
+  String toString() {
+    return 'Season{id: $id, seasonNumber: $seasonNumber, posterPath: $posterPath, episodes: $episodes}';
+  }
+}
+
 class TV extends Production {
+  // List<Season>? seasons;
+  List<Episode> episodes = [];
+  int progress = 0;
   TV(
     int id,
     String posterUrl,
@@ -240,6 +308,11 @@ class TV extends Production {
         rating,
         language,
       );
+
+  @override
+  String toString() {
+    return 'TV{episodes: $episodes, ${super.toString()}}';
+  }
 }
 
 class TvFilters {
@@ -611,7 +684,58 @@ class TMDBApi {
     } else {
       throw Exception('Failed to load data on tv credits for id: $id');
     }
-    return AditionalInfo(runtime, cast);
+    List<Season> seasons = await getTVSeasons(id);
+    return AditionalInfo(runtime, cast, seasons);
+  }
+
+  static Future<List<Season>> getTVSeasons(int id) async {
+    print('getTVSeasons for id: $id');
+    String apiKey = dotenv.env['TMDB_KEY'] ?? '';
+    int numberOfSeasons = 0;
+    final response = await http.get(
+      Uri.parse('https://api.themoviedb.org/3/tv/$id?'),
+      headers: {'Authorization': 'Bearer $apiKey'},
+    );
+    List<Season> seasons = [];
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      numberOfSeasons = data['number_of_seasons'];
+      for (int i = 0; i < numberOfSeasons; i++) {
+        final response2 = await http.get(
+          Uri.parse('https://api.themoviedb.org/3/tv/$id/season/${i + 1}?'),
+          headers: {'Authorization': 'Bearer $apiKey'},
+        );
+        if (response2.statusCode == 200) {
+          final data2 = jsonDecode(response2.body);
+          List<Episode> episodes = [];
+          int resultsCount = data2['episodes'].length;
+          for (int j = 0; j < resultsCount; j++) {
+            dynamic current = data2['episodes'][j];
+            episodes.add(
+              Episode(
+                current['id'],
+                current['episode_number'],
+                current['name'] ?? 'No Name',
+                current['still_path'] ?? 'null',
+              ),
+            );
+          }
+          seasons.add(
+            Season(
+              data2['id'],
+              data2['season_number'],
+              data2['poster_path'] ?? 'null',
+              episodes,
+            ),
+          );
+        } else {
+          throw Exception('Failed to load data on tv seasons for id: $id');
+        }
+      }
+    } else {
+      throw Exception('Failed to load data on tv seasons for id: $id');
+    }
+    return seasons;
   }
 
   static Future<List<Genres>> getMovieGenres() async {
