@@ -67,7 +67,7 @@ class LoginScreenState extends State<LoginScreen> {
                     SizedButton(
                       text: "Descend",
                       onPressed: () {
-                        Navigator.push(
+                        Navigator.pushReplacement(
                           context,
                           MaterialPageRoute(
                             builder: (context) => const HomeScreen(),
@@ -111,7 +111,7 @@ class LoginScreenState extends State<LoginScreen> {
                         TextButton(
                           onPressed:
                               () => {
-                                Navigator.push(
+                                Navigator.pushReplacement(
                                   context,
                                   MaterialPageRoute(
                                     builder:

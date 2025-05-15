@@ -1,5 +1,6 @@
 import 'package:abyss/home_screen.dart';
 import 'package:abyss/theme_provider.dart';
+import 'package:abyss/account_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -8,8 +9,7 @@ import 'track.dart';
 class AbyssNavigationBar extends StatefulWidget {
   final int initialIndex;
 
-  const AbyssNavigationBar({Key? key, required this.initialIndex})
-    : super(key: key);
+  const AbyssNavigationBar({super.key, required this.initialIndex});
 
   @override
   _AbyssNavigationBarState createState() => _AbyssNavigationBarState();
@@ -34,8 +34,8 @@ class _AbyssNavigationBarState extends State<AbyssNavigationBar> {
                 return TrackScreen();
               case 1:
                 return HomeScreen();
-              // case 2:
-              //   return AccountScreen();
+              case 2:
+                return AccountScreen();
               default:
                 return HomeScreen();
             }

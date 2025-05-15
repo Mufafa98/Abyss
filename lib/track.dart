@@ -130,6 +130,9 @@ class _TrackScreenState extends State<TrackScreen> {
                 !watchListProvider.isEmpty()))) {
       return Expanded(child: Center(child: Text("No items to display.")));
     }
+    print(
+      "Total elements: $totalElements, Watched List Length: ${watchedListProvider.listLength()}, Watch List Length: ${watchListProvider.listLength()}",
+    );
     return Expanded(
       child: ListView.builder(
         controller: _scrollController,
@@ -139,26 +142,31 @@ class _TrackScreenState extends State<TrackScreen> {
             if (index == watchedListProvider.listLength()) {
               return const Divider(indent: 10, endIndent: 10);
             }
-            return _buildProdChip(
-              context,
-              watchedListProvider[index],
-              true,
-              () {
+            ProdBase prod = watchedListProvider[index];
+
+            return _buildProdChip(context, prod, true, () {
+              if (watchedListProvider[index].type == ProductionType.tv) {
+                TV temp = watchedListProvider.getParent(index) as TV;
+                temp.progress -=
+                    temp.progress - watchedListProvider.getIndexInTV(index);
+                watchListProvider.updateWatchList(temp);
+                watchedListProvider.updateWatchList(temp);
+              } else {
                 watchListProvider.addToWatchList(watchedListProvider[index]);
                 watchedListProvider.removeFromWatchedList(
                   watchedListProvider[index],
                 );
-              },
-            );
+              }
+            });
           } else {
             final newIndex = index - watchedListProvider.listLength() - 1;
             ProdBase prod = watchListProvider[newIndex];
             return _buildProdChip(context, prod, false, () {
               if (watchListProvider[newIndex].type == ProductionType.tv) {
-                print("TV prod");
-                (watchListProvider[newIndex] as TV).progress += 1;
-                watchListProvider.notify();
-                // TODO update state
+                TV temp = watchListProvider.getParent(newIndex) as TV;
+                temp.progress += 1;
+                watchListProvider.updateWatchList(temp);
+                watchedListProvider.addSingleToWatchedList(temp);
               } else {
                 watchedListProvider.addToWatchedList(prod);
                 watchListProvider.removeFromWatchList(prod);

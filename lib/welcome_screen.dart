@@ -74,7 +74,7 @@ class WelcomeScreen extends StatelessWidget {
                           height: size.height * 0.07,
                           fontSize: 25,
                           onPressed: () {
-                            Navigator.push(
+                            Navigator.pushReplacement(
                               context,
                               MaterialPageRoute(
                                 builder: (context) => const LoginScreen(),

@@ -383,6 +383,10 @@ class HomeScreenState extends State<HomeScreen> {
               if (inWatchedList) {
                 watchedListProvider.removeFromWatchedList(_selectedProduction);
               } else {
+                if (_selectedProduction is TV) {
+                  TV prod = _selectedProduction as TV;
+                  (_selectedProduction as TV).progress = prod.episodes.length;
+                }
                 watchListProvider.removeFromWatchList(_selectedProduction);
                 watchedListProvider.addToWatchedList(_selectedProduction);
               }
